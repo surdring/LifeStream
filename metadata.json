@@ -1,0 +1,5 @@
+{
+  "name": "LifeStream AI Journal",
+  "description": "A daily stream-of-consciousness journaling app that automatically aggregates your logs into Weekly, Monthly, and Yearly insights using Google Gemini.",
+  "requestFramePermissions": []
+}

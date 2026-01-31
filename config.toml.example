@@ -1,0 +1,15 @@
+[server]
+host = "127.0.0.1"
+port = 8787
+
+[postgres]
+host = "127.0.0.1"
+port = 5432
+user = "postgres"
+password = ""
+database = "lifestream"
+
+[llamacpp]
+baseUrl = "http://127.0.0.1:8080"
+model = "your-model-name"
+temperature = 0.3
