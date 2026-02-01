@@ -11,6 +11,11 @@ export default defineConfig(({ mode }) => {
       server: {
         port: 3000,
         host: '0.0.0.0',
+        allowedHosts: [
+          '47.96.159.100',
+          'lifestream.tofly.top',
+          '.tofly.top'
+        ],
         proxy: {
           '/api': {
             target: 'http://127.0.0.1:8787',

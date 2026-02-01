@@ -9,6 +9,12 @@ const ConfigSchema = z
     host: z.string().min(1).default('127.0.0.1'),
     port: z.coerce.number().int().positive().default(8787),
   }).partial().default({ host: '127.0.0.1', port: 8787 }),
+  auth: z
+    .object({
+      jwt_secret: z.string().min(16),
+    })
+    .partial()
+    .optional(),
   postgres: z.object({
     host: z.string().min(1),
     port: z.coerce.number().int().positive().default(5432),
@@ -83,5 +89,11 @@ export async function loadConfig(configPath = path.join(process.cwd(), 'config.t
     throw new Error(`Invalid config.toml: ${result.error.message}`);
   }
 
-  return result.data;
+  const data: any = result.data;
+  const envJwtSecret = process.env.LIFESTREAM_JWT_SECRET || process.env.JWT_SECRET;
+  if (!data.auth?.jwt_secret && typeof envJwtSecret === 'string' && envJwtSecret.length > 0) {
+    data.auth = { ...(data.auth || {}), jwt_secret: envJwtSecret };
+  }
+
+  return data as AppConfig;
 }

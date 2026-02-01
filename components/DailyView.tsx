@@ -56,7 +56,7 @@ export const DailyView: FC = () => {
     (r) => r.type === 'DAILY' && r.periodStart === selectedDate && r.periodEnd === selectedDate
   );
 
-  const cuesOpen = cuesOpenByDate[selectedDate] ?? true;
+  const cuesOpen = cuesOpenByDate[selectedDate] ?? false;
   const generatedCuesForSelectedDate = cuesByDate[selectedDate];
   const hasGeneratedCuesForSelectedDate =
     typeof generatedCuesForSelectedDate === 'string' && generatedCuesForSelectedDate.trim().length > 0;
@@ -78,6 +78,8 @@ export const DailyView: FC = () => {
   const stripLeadingCuesHeading = (markdown: string): string => {
     return markdown
       .replace(/^\s*##\s*(线索区（Cues）|线索区\s*\(Cues\)|Cues)\s*\n+/m, '')
+      .replace(/复盘问题（遮住答案自测）/g, '复盘问题')
+      .replace(/Review Questions \(Self-test\)/g, 'Review Questions')
       .trim();
   };
 
@@ -314,7 +316,7 @@ export const DailyView: FC = () => {
                       onClick={() =>
                         setCuesOpenByDate((prev) => ({
                           ...prev,
-                          [selectedDate]: !(prev[selectedDate] ?? true),
+                          [selectedDate]: !(prev[selectedDate] ?? false),
                         }))
                       }
                       className="p-2 rounded-lg border border-gray-200 bg-white text-gray-500 hover:bg-gray-50"
@@ -531,14 +533,14 @@ export const DailyView: FC = () => {
 
             {/* Input Area */}
             {isToday && (
-                <div className="p-4 bg-white border-t border-gray-100 sticky bottom-0 z-20">
-                    <div className="max-w-3xl mx-auto relative shadow-lg rounded-2xl">
+                <div className="p-4 bg-gradient-to-t from-gray-100/90 via-gray-100/50 to-transparent backdrop-blur-sm border-t border-gray-100 sticky bottom-0 z-20">
+                    <div className="max-w-3xl mx-auto relative rounded-2xl border border-gray-200 bg-white shadow-lg overflow-hidden focus-within:ring-2 focus-within:ring-indigo-500/20 focus-within:border-indigo-500">
                     <textarea
                         value={inputValue}
                         onChange={(e) => setInputValue(e.target.value)}
                         onKeyDown={handleKeyDown}
                         placeholder={t('daily.placeholder')}
-                        className="w-full pl-5 pr-14 py-4 bg-white border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 resize-none h-16 max-h-48"
+                        className="w-full pl-5 pr-14 py-4 bg-transparent border-0 focus:outline-none focus:ring-0 resize-none h-16 max-h-48"
                         style={{ minHeight: '60px' }}
                     />
                     <button

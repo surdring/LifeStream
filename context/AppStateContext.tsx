@@ -1,7 +1,15 @@
 import { createContext, useContext, useEffect, useState, type ReactNode, type FC } from 'react';
 import { LogEntry, AIReport, Todo } from '../types';
 import { useLanguage } from './LanguageContext';
-import { createLog, createReport, deleteLog as deleteLogApi, listLogs, listReports, updateLog as updateLogApi } from '../services/apiClient';
+import {
+  createLog,
+  createReport,
+  deleteLog as deleteLogApi,
+  deleteReport as deleteReportApi,
+  listLogs,
+  listReports,
+  updateLog as updateLogApi,
+} from '../services/apiClient';
 
 interface AppContextType {
   logs: Record<string, LogEntry[]>;
@@ -11,6 +19,7 @@ interface AppContextType {
   updateLog: (date: string, logId: string, newContent: string) => Promise<void>;
   deleteLog: (date: string, logId: string) => Promise<void>;
   addReport: (report: AIReport) => void;
+  deleteReport: (id: string) => Promise<void>;
   getLogsForPeriod: (start: Date, end: Date) => LogEntry[];
   addTodo: (content: string) => void;
   toggleTodo: (id: string) => void;
@@ -216,6 +225,16 @@ export const AppStateProvider: FC<{ children: ReactNode }> = ({ children }) => {
     setReports(prev => [report, ...prev.filter(r => r.id !== report.id)]);
   };
 
+  const deleteReport = async (id: string) => {
+    try {
+      await deleteReportApi(id);
+      setReports((prev) => prev.filter((r) => r.id !== id));
+    } catch (err) {
+      console.error('Failed to delete report:', err);
+      throw err;
+    }
+  };
+
   const getLogsForPeriod = (start: Date, end: Date): LogEntry[] => {
     const entries: LogEntry[] = [];
     const current = new Date(start);
@@ -273,7 +292,7 @@ export const AppStateProvider: FC<{ children: ReactNode }> = ({ children }) => {
   return (
     <AppContext.Provider value={{ 
       logs, reports, todos,
-      addLog, updateLog, deleteLog, addReport, getLogsForPeriod,
+      addLog, updateLog, deleteLog, addReport, deleteReport, getLogsForPeriod,
       addTodo, toggleTodo, deleteTodo 
     }}>
       {children}

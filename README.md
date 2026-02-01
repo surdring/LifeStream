@@ -1,6 +1,3 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
 
 # LifeStream
 
@@ -44,6 +41,8 @@ cp config.toml.example config.toml
 然后按你的环境修改：
 
 - `[server]`：后端监听地址/端口（默认 `127.0.0.1:8787`）
+- `[auth]`：鉴权配置
+  - `jwt_secret`：JWT 签名密钥（**长度至少 16**；建议使用强随机字符串；生产环境不要泄露/不要提交到仓库）
 - `[postgres]`：你的 Postgres 连接信息
 - `[llm]`：选择 `llm_provider = "llamacpp"` 或 `"provider"`
 - 若选择 `llamacpp`：填写 `[llamacpp].baseUrl / model / temperature`（可选 `api_key`）
@@ -52,6 +51,7 @@ cp config.toml.example config.toml
 安全提示：
 
 - **不要把真实密码/Key 提交到仓库**。
+- 你也可以通过环境变量提供 JWT 密钥：`LIFESTREAM_JWT_SECRET`
 
 ### 4. 准备数据库
 
@@ -86,6 +86,136 @@ npm run dev
 打开：
 
 - `http://127.0.0.1:3000`
+
+首次打开会进入登录页：
+
+- 如果是第一次使用（系统只有默认用户且未设置密码），会提示“初始化管理员账号”（bootstrap）
+- 初始化完成后会自动登录
+
+说明：
+
+- 鉴权启用后，除 `/api/health` 与 `/api/auth/*` 外，所有 `/api/*` 都需要登录（Bearer Token）
+- 历史已有的日志/报表数据会自动归属到默认用户（`default`）下
+
+## 开发/运维辅助
+
+### 1) 清空测试数据（日志 + 报表）
+
+当你用本项目做功能测试，想一键清空“测试生成的日志和报表”时，可以运行：
+
+```bash
+npm run clear:test-data
+```
+
+该脚本会读取 `config.toml` 连接 Postgres，并执行：
+
+- 清空表 `logs`
+- 清空表 `reports`
+
+为了避免误删，默认会要求你输入 `DELETE` 才会继续。
+
+如果你确认要跳过交互提示（**非常谨慎使用**）：
+
+```bash
+npm run clear:test-data -- --yes
+```
+
+注意：这是“全表清空”，请只对测试库使用。
+
+### 2) 删除报表
+
+在“洞察与报表”页面，每条报表右上角提供“删除”按钮。
+
+对应后端接口：
+
+- `DELETE /api/reports/:id`
+  - 成功返回 `204`
+  - 报表不存在返回 `404`
+
+### 3) 使用 frp 做内网穿透（推荐只暴露前端 3000）
+
+如果你只有一台“便宜公网服务器”，而真正跑 LifeStream 的机器在内网/家里（无法直接公网访问），可以用 `frp` 把内网的前端 dev server 暴露到公网。
+
+推荐做法：
+
+- **只暴露前端 Vite（3000）**
+- 后端（8787）与数据库保持只在内网监听
+- 浏览器访问公网域名 -> frp -> 内网 Vite（3000）
+- 浏览器请求的 `/api/*` 会先到 Vite，再由 Vite Proxy 转发到同机后端 `127.0.0.1:8787`
+
+这样做的好处：
+
+- 公网侧只需要开一个入口（3000/HTTP 域名）
+- 后端端口不直接暴露，安全性更好
+
+#### A. 公网服务器（frps）示例配置
+
+下面以 `frp` 的 TOML 配置为例（你可以按自己的版本改成 ini）。
+
+`frps.toml`：
+
+```toml
+bindPort = 7700
+
+# HTTP 虚拟主机端口（可自定义；如果你没有 80/443 权限，用 7080 之类也可以）
+vhostHTTPPort = 7080
+
+# 强烈建议开启鉴权（示例使用 token）
+[auth]
+method = "token"
+token = "PLEASE_CHANGE_ME"
+```
+
+启动 frps（示例）：
+
+```bash
+./frps -c frps.toml
+```
+
+#### B. 内网机器（frpc）示例配置
+
+`frpc.toml`：
+
+```toml
+serverAddr = "47.96.159.100"
+serverPort = 7700
+
+[auth]
+method = "token"
+token = "PLEASE_CHANGE_ME"
+
+[[proxies]]
+name = "lifestream-web"
+type = "http"
+localIP = "127.0.0.1"
+localPort = 3000
+
+# 方式 1：使用自定义域名（推荐）
+customDomains = ["lifestream.tofly.top"]
+```
+
+启动 frpc（示例）：
+
+```bash
+./frpc -c frpc.toml
+```
+
+然后你就可以通过类似下面的地址访问：
+
+- `http://lifestream.tofly.top:7080`
+
+#### C. 启动顺序（内网机器）
+
+1. 启动 Postgres / LLM（按你的环境）
+2. 启动后端：`npm run dev:server`
+3. 启动前端：`npm run dev`
+4. 启动 frpc：`./frpc -c frpc.toml`
+
+#### D. 注意事项
+
+- Vite 对 Host Header 有校验。如果你用 frp 域名访问遇到 403，需要在 `vite.config.ts` 的 `server.allowedHosts` 里加入对应域名/公网 IP（本项目已预留该配置）。
+- 强烈建议为 frp 开启鉴权（token/oidc 等），避免公网被扫到后随意转发。
+- 这是“开发/临时对外访问”方案。生产环境更推荐：构建前端 + Nginx 反代 `/api`（见下方“部署（生产环境）”）。
 
 ## 部署（生产环境）
 

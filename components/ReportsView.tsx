@@ -1,7 +1,7 @@
 import { useState, type FC } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { Calendar, RefreshCw, Sparkles, ChevronRight, FileText } from 'lucide-react';
+import { Calendar, RefreshCw, Sparkles, ChevronRight, FileText, Trash2 } from 'lucide-react';
 import { useAppState } from '../context/AppStateContext';
 import { useLanguage } from '../context/LanguageContext';
 import { generateReport, updateReport } from '../services/apiClient';
@@ -9,7 +9,7 @@ import { ReportType, AIReport } from '../types';
 import { extractActionItemsFromMarkdown, extractCuesSection, stripThinkingFromReport } from '../shared/reportPrompt';
 
 export const ReportsView: FC = () => {
-  const { reports, todos, addTodo, addReport } = useAppState();
+  const { reports, todos, addTodo, addReport, deleteReport } = useAppState();
   const { t, language } = useLanguage();
   const [activeTab, setActiveTab] = useState<ReportType>(ReportType.WEEKLY);
   const [loading, setLoading] = useState(false);
@@ -17,6 +17,7 @@ export const ReportsView: FC = () => {
   const [editingReportId, setEditingReportId] = useState<string | null>(null);
   const [draftContent, setDraftContent] = useState('');
   const [saving, setSaving] = useState(false);
+  const [deletingReportId, setDeletingReportId] = useState<string | null>(null);
 
   const locale = language === 'zh' ? 'zh-CN' : 'en-US';
 
@@ -111,6 +112,29 @@ export const ReportsView: FC = () => {
       }
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleDeleteReport = async (report: AIReport) => {
+    const ok = window.confirm(
+      language === 'zh'
+        ? '确定要删除这条报表吗？此操作不可恢复。'
+        : 'Delete this report? This action cannot be undone.'
+    );
+    if (!ok) return;
+
+    setDeletingReportId(report.id);
+    setError(null);
+    try {
+      await deleteReport(report.id);
+      if (editingReportId === report.id) {
+        cancelEditing();
+      }
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      setError(msg);
+    } finally {
+      setDeletingReportId(null);
     }
   };
 
@@ -306,6 +330,15 @@ export const ReportsView: FC = () => {
                                         className="px-3 py-1 bg-white border border-gray-200 rounded-full text-xs font-medium text-gray-700 hover:bg-gray-100 disabled:opacity-60 disabled:cursor-not-allowed"
                                     >
                                         {t('reports.regenerate')}
+                                    </button>
+                                    <button
+                                      onClick={() => void handleDeleteReport(report)}
+                                      disabled={loading || saving || deletingReportId === report.id}
+                                      className="px-3 py-1 bg-white border border-red-200 rounded-full text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-1"
+                                      title={language === 'zh' ? '删除报表' : 'Delete report'}
+                                    >
+                                      <Trash2 size={14} />
+                                      {language === 'zh' ? '删除' : 'Delete'}
                                     </button>
                                     {editingReportId === report.id ? (
                                       <>

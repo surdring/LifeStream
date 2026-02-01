@@ -1,18 +1,36 @@
-import React from 'react';
-import { BookOpen, BarChart3, Feather, Globe } from 'lucide-react';
+import { useEffect, useRef, useState, type FC } from 'react';
+import { BookOpen, BarChart3, Feather, Globe, LogOut, MoreHorizontal } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 
 interface SidebarProps {
   currentView: 'daily' | 'reports';
   onViewChange: (view: 'daily' | 'reports') => void;
+  user?: { username: string } | null;
+  onLogout?: () => void;
 }
 
-export const Sidebar: React.FC<SidebarProps> = ({ currentView, onViewChange }) => {
+export const Sidebar: FC<SidebarProps> = ({ currentView, onViewChange, user, onLogout }) => {
   const { t, language, setLanguage } = useLanguage();
+  const userInitial = user?.username?.trim()?.slice(0, 1).toUpperCase() ?? '?';
+  const [accountMenuOpen, setAccountMenuOpen] = useState(false);
+  const accountMenuRef = useRef<HTMLDivElement | null>(null);
 
   const toggleLanguage = () => {
     setLanguage(language === 'en' ? 'zh' : 'en');
   };
+
+  useEffect(() => {
+    if (!accountMenuOpen) return;
+    const onDown = (e: MouseEvent) => {
+      const el = accountMenuRef.current;
+      if (!el) return;
+      if (e.target instanceof Node && !el.contains(e.target)) {
+        setAccountMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', onDown);
+    return () => document.removeEventListener('mousedown', onDown);
+  }, [accountMenuOpen]);
 
   return (
     <aside className="w-20 lg:w-64 bg-white border-r border-gray-200 flex flex-col items-center lg:items-stretch py-6 z-20 shadow-sm transition-all">
@@ -35,7 +53,7 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onViewChange }) =
           }`}
           title={t('sidebar.dailyLog')}
         >
-          <BookOpen size={22} className={currentView === 'daily' ? 'stroke-[2.5px]' : 'stroke-2'} />
+          <BookOpen size={22} className="stroke-2" />
           <span className="hidden lg:block">{t('sidebar.dailyLog')}</span>
         </button>
 
@@ -48,32 +66,60 @@ export const Sidebar: React.FC<SidebarProps> = ({ currentView, onViewChange }) =
           }`}
           title={t('sidebar.reports')}
         >
-          <BarChart3 size={22} className={currentView === 'reports' ? 'stroke-[2.5px]' : 'stroke-2'} />
+          <BarChart3 size={22} className="stroke-2" />
           <span className="hidden lg:block">{t('sidebar.reports')}</span>
         </button>
+
+        <div className="hidden lg:block mt-4 rounded-xl border border-gray-100 bg-gray-50 p-4">
+          <p className="text-xs text-gray-500 font-medium">{t('sidebar.proTip')}</p>
+          <p className="text-xs text-gray-400 mt-1">{t('sidebar.proTipDesc')}</p>
+        </div>
       </nav>
 
       <div className="px-4 w-full mt-auto space-y-4">
-        {/* Language Toggle */}
-        <button 
-          onClick={toggleLanguage}
-          className="w-full flex items-center justify-center lg:justify-start gap-2 p-2 rounded-lg text-gray-400 hover:text-indigo-600 hover:bg-indigo-50 transition-all text-xs font-bold tracking-wide"
-        >
-            <Globe size={16} />
-            <span className="hidden lg:block">
-                {language === 'en' ? 'English' : '中文 (简体)'}
-            </span>
-            <span className="lg:hidden">
-                {language === 'en' ? 'EN' : '中'}
-            </span>
-        </button>
+        {user && onLogout && (
+          <div ref={accountMenuRef} className="hidden lg:block relative">
+            <button
+              onClick={() => setAccountMenuOpen((v) => !v)}
+              className="w-full flex items-center gap-3 rounded-xl px-2 py-2 hover:bg-gray-50 text-left"
+            >
+              <div className="w-9 h-9 rounded-xl bg-gradient-to-br from-indigo-500 to-purple-600 text-white flex items-center justify-center shadow-sm shrink-0">
+                <span className="text-xs font-bold">{userInitial}</span>
+              </div>
+              <div className="min-w-0 flex-1">
+                <p className="text-[11px] font-medium text-gray-500">{language === 'zh' ? '当前用户' : 'Account'}</p>
+                <p className="truncate text-sm font-semibold text-gray-900">{user.username}</p>
+              </div>
+              <MoreHorizontal size={18} className="text-gray-400" />
+            </button>
 
-        <div className="hidden lg:block bg-gray-50 p-4 rounded-xl border border-gray-100">
-          <p className="text-xs text-gray-500 font-medium">{t('sidebar.proTip')}</p>
-          <p className="text-xs text-gray-400 mt-1">
-            {t('sidebar.proTipDesc')}
-          </p>
-        </div>
+            {accountMenuOpen && (
+              <div className="absolute bottom-full left-0 right-0 mb-2 rounded-xl border border-gray-200 bg-white shadow-lg overflow-hidden">
+                {/* Language Toggle */}
+                <button
+                  onClick={() => {
+                    toggleLanguage();
+                    setAccountMenuOpen(false);
+                  }}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50"
+                >
+                  <Globe size={14} className="text-gray-400" />
+                  <span>{language === 'en' ? '中文 (简体)' : 'English'}</span>
+                </button>
+                <button
+                  onClick={() => {
+                    setAccountMenuOpen(false);
+                    onLogout();
+                  }}
+                  className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50"
+                >
+                  <LogOut size={14} className="text-gray-400" />
+                  <span>{language === 'zh' ? '退出登录' : 'Logout'}</span>
+                </button>
+              </div>
+            )}
+          </div>
+        )}
       </div>
     </aside>
   );

@@ -22,8 +22,8 @@ export const translations = {
       subtitle: "Capture your thoughts as they happen.",
       noEntries: "No entries for this day.",
       startTyping: "Start typing below...",
-      placeholder: "What's on your mind? (Shift+Enter for new line)",
-      pressEnter: "Press Enter to save",
+      placeholder: "Write a quick note for today...",
+      pressEnter: "Enter to save · Shift+Enter for new line",
       completedTask: "✅ Completed task: "
     },
     todo: {
@@ -70,8 +70,8 @@ export const translations = {
       subtitle: "随时记录你的想法。",
       noEntries: "今天还没有记录。",
       startTyping: "在下方开始输入...",
-      placeholder: "你在想什么？(Shift+Enter 换行)",
-      pressEnter: "按回车键保存",
+      placeholder: "写下今天的一条记录...",
+      pressEnter: "回车保存 · Shift+Enter 换行",
       completedTask: "✅ 完成任务："
     },
     todo: {

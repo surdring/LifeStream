@@ -10,7 +10,7 @@ export function buildReportSystemInstruction(params: {
 
   const cuesTitle = isZh ? '线索区（Cues）' : 'Cues';
   const keywordsTitle = isZh ? '关键词' : 'Keywords';
-  const questionsTitle = isZh ? '复盘问题（遮住答案自测）' : 'Review Questions (Self-test)';
+  const questionsTitle = isZh ? '复盘问题' : 'Review Questions';
   const nextActionsTitle = isZh ? '下一步行动（可执行）' : 'Next Actions (Executable)';
   const evidenceTitle = isZh ? '证据（来自日志）' : 'Evidence (From Logs)';
 
@@ -66,7 +66,7 @@ export function buildCuesSystemInstruction(params: {
 
   const cuesTitle = isZh ? '线索区（Cues）' : 'Cues';
   const keywordsTitle = isZh ? '关键词' : 'Keywords';
-  const questionsTitle = isZh ? '复盘问题（遮住答案自测）' : 'Review Questions (Self-test)';
+  const questionsTitle = isZh ? '复盘问题' : 'Review Questions';
   const nextActionsTitle = isZh ? '下一步行动（可执行）' : 'Next Actions (Executable)';
   const evidenceTitle = isZh ? '证据（来自日志）' : 'Evidence (From Logs)';
 
