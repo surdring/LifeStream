@@ -217,6 +217,40 @@ customDomains = ["lifestream.tofly.top"]
 - 强烈建议为 frp 开启鉴权（token/oidc 等），避免公网被扫到后随意转发。
 - 这是“开发/临时对外访问”方案。生产环境更推荐：构建前端 + Nginx 反代 `/api`（见下方“部署（生产环境）”）。
 
+### 4) 创建新用户（管理员操作）
+
+当前项目默认不提供“开放注册”。
+
+- 首次进入前端登录页会进行 bootstrap：把默认用户 `default` 设置为管理员账号
+- 后续新增用户需要使用管理员账号调用接口创建
+
+#### A. 管理员登录获取 JWT
+
+```bash
+curl -s -X POST http://127.0.0.1:8787/api/auth/login \
+  -H "content-type: application/json" \
+  -d '{"username":"surdring","password":"YOUR_PASSWORD"}'
+```
+
+返回中会包含 `token`（JWT 形如 `xxx.yyy.zzz`）。
+
+#### B. 用 JWT 创建新用户
+
+```bash
+curl -s -X POST http://127.0.0.1:8787/api/auth/register \
+  -H "content-type: application/json" \
+  -H "authorization: Bearer YOUR_JWT_TOKEN" \
+  -d '{"username":"surdring001","password":"123456","isAdmin":false}'
+```
+
+成功会返回 `201`，并返回新用户信息（不包含密码）。
+
+#### C. 常见错误
+
+- `401 Unauthorized`：没带 token / token 不是有效 JWT / token 过期
+- `403 Forbidden`：登录的是普通用户（非管理员），无权创建新用户
+- `409 Username already exists.`：用户名重复
+
 ## 部署（生产环境）
 
 本项目的后端目前**只提供 API**（`server/index.ts` 没有托管前端静态文件），因此推荐按“前后端分离”方式部署：
