@@ -514,6 +514,25 @@ sudo /www/server/nginx/sbin/nginx -s reload
 - `baseUrl/base_url` 是否可从后端机器访问
 - `api_key` 是否正确
 
+### 3) 待办事项是否多端共享？
+
+是。
+
+- 待办数据存储在后端 Postgres 的 `todos` 表中，并按登录用户的 `user_id` 隔离
+- 前端通过 `/api/todos` 进行读取/新增/更新/删除，同一账号在不同设备登录会看到同一份待办
+
+#### 待办从本地迁移到服务端（一次性）
+
+如果你以前的待办在浏览器本地（`localStorage` 的 `ls_todos`），升级后前端会做一次性迁移：
+
+- 条件：服务端当前 `todos` 为空、且本地 `ls_todos` 有数据
+- 迁移完成后会写入 `localStorage` 标记：`ls_migrated_todos_postgres_v1=1`，避免重复迁移
+
+### 4) 刷新按钮
+
+- **待办列表**（右上角刷新图标）：重新拉取 `/api/todos`
+- **日志列表**（日记页右上角刷新图标）：重新拉取 `/api/logs` 与 `/api/reports`
+
 ## 更新代码
 
 ```bash
