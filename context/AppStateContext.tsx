@@ -6,10 +6,38 @@ import {
   createReport,
   deleteLog as deleteLogApi,
   deleteReport as deleteReportApi,
+  listTodos,
+  createTodo as createTodoApi,
+  updateTodo as updateTodoApi,
+  deleteTodo as deleteTodoApi,
   listLogs,
   listReports,
   updateLog as updateLogApi,
 } from '../services/apiClient';
+
+function generateId(): string {
+  try {
+    const c = (globalThis as any).crypto;
+    if (c && typeof c.randomUUID === 'function') {
+      return c.randomUUID();
+    }
+
+    if (c && typeof c.getRandomValues === 'function') {
+      const bytes = new Uint8Array(16);
+      c.getRandomValues(bytes);
+
+      // RFC4122 version 4
+      bytes[6] = (bytes[6] & 0x0f) | 0x40;
+      bytes[8] = (bytes[8] & 0x3f) | 0x80;
+
+      const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
+      return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`;
+    }
+  } catch {
+  }
+
+  return `id_${Date.now().toString(16)}_${Math.random().toString(16).slice(2)}`;
+}
 
 interface AppContextType {
   logs: Record<string, LogEntry[]>;
@@ -24,6 +52,8 @@ interface AppContextType {
   addTodo: (content: string) => void;
   toggleTodo: (id: string) => void;
   deleteTodo: (id: string) => void;
+  refreshTodos: () => Promise<void>;
+  refreshLogsAndReports: () => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -43,15 +73,19 @@ export const AppStateProvider: FC<{ children: ReactNode }> = ({ children }) => {
   const [reports, setReports] = useState<AIReport[]>([]);
 
   const [todos, setTodos] = useState<Todo[]>(() => {
-    const saved = localStorage.getItem('ls_todos');
-    return saved ? JSON.parse(saved) : [];
+    try {
+      const saved = localStorage.getItem('ls_todos');
+      return saved ? JSON.parse(saved) : [];
+    } catch {
+      return [];
+    }
   });
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const [apiLogs, apiReports] = await Promise.all([listLogs(), listReports()]);
+        const [apiLogs, apiReports, apiTodos] = await Promise.all([listLogs(), listReports(), listTodos()]);
         if (cancelled) return;
 
         const grouped: Record<string, LogEntry[]> = {};
@@ -62,6 +96,58 @@ export const AppStateProvider: FC<{ children: ReactNode }> = ({ children }) => {
         Object.values(grouped).forEach((arr) => arr.sort((a, b) => b.timestamp - a.timestamp));
         setLogs(grouped);
         setReports(apiReports);
+
+        const serverTodos: Todo[] = (apiTodos || []).map((t: any) => ({
+          id: String(t.id),
+          content: String(t.content),
+          completed: Boolean(t.completed),
+          createdAt: Number(t.createdAt),
+          updatedAt: Number(t.updatedAt),
+        }));
+        setTodos(serverTodos);
+
+        // One-time migration: if server has no todos but localStorage has some, push them to server.
+        // This helps existing single-device users to upgrade to multi-device sync.
+        if (serverTodos.length === 0) {
+          try {
+            const localText = localStorage.getItem('ls_todos');
+            const localTodos: any = localText ? JSON.parse(localText) : [];
+            if (Array.isArray(localTodos) && localTodos.length > 0) {
+              const migratedFlag = localStorage.getItem('ls_migrated_todos_postgres_v1');
+              if (!migratedFlag) {
+                const results = await Promise.allSettled(
+                  localTodos
+                    .filter((x: any) => x && typeof x.content === 'string' && x.content.trim().length > 0)
+                    .map((x: any) =>
+                      createTodoApi({
+                        id: typeof x.id === 'string' && x.id.length > 0 ? x.id : undefined,
+                        content: String(x.content),
+                        completed: Boolean(x.completed),
+                        createdAt: typeof x.createdAt === 'number' ? x.createdAt : undefined,
+                        updatedAt: typeof x.createdAt === 'number' ? x.createdAt : undefined,
+                      })
+                    )
+                );
+                const failed = results.filter((r) => r.status === 'rejected');
+                if (failed.length === 0) {
+                  localStorage.setItem('ls_migrated_todos_postgres_v1', '1');
+                  const apiTodos2 = await listTodos();
+                  if (cancelled) return;
+                  setTodos(
+                    (apiTodos2 || []).map((t: any) => ({
+                      id: String(t.id),
+                      content: String(t.content),
+                      completed: Boolean(t.completed),
+                      createdAt: Number(t.createdAt),
+                      updatedAt: Number(t.updatedAt),
+                    }))
+                  );
+                }
+              }
+            }
+          } catch {
+          }
+        }
 
         const migratedFlag = localStorage.getItem('ls_migrated_postgres_v1');
         if (migratedFlag) return;
@@ -147,17 +233,46 @@ export const AppStateProvider: FC<{ children: ReactNode }> = ({ children }) => {
     };
   }, []);
 
-  // Persist todos
+  // Persist todos as cache only (source of truth is server)
   useEffect(() => {
-    localStorage.setItem('ls_todos', JSON.stringify(todos));
+    try {
+      localStorage.setItem('ls_todos', JSON.stringify(todos));
+    } catch {
+    }
   }, [todos]);
+
+  const refreshTodos = async (): Promise<void> => {
+    const apiTodos = await listTodos();
+    const serverTodos: Todo[] = (apiTodos || []).map((x: any) => ({
+      id: String(x.id),
+      content: String(x.content),
+      completed: Boolean(x.completed),
+      createdAt: Number(x.createdAt),
+      updatedAt: Number(x.updatedAt),
+    }));
+    setTodos(serverTodos);
+  };
+
+  const refreshLogsAndReports = async (): Promise<void> => {
+    const [apiLogs, apiReports] = await Promise.all([listLogs(), listReports()]);
+
+    const grouped: Record<string, LogEntry[]> = {};
+    for (const l of apiLogs) {
+      grouped[l.dateKey] = grouped[l.dateKey] || [];
+      grouped[l.dateKey].push({ id: l.id, timestamp: l.timestamp, content: l.content, tags: l.tags });
+    }
+    Object.values(grouped).forEach((arr) => arr.sort((a, b) => b.timestamp - a.timestamp));
+
+    setLogs(grouped);
+    setReports(apiReports);
+  };
 
   const addLog = async (content: string) => {
     const now = new Date();
     const dateKey = formatLocalDateKey(now);
     
     const newEntry: LogEntry = {
-      id: crypto.randomUUID(),
+      id: generateId(),
       timestamp: now.getTime(),
       content,
       tags: []
@@ -259,13 +374,28 @@ export const AppStateProvider: FC<{ children: ReactNode }> = ({ children }) => {
 
   // Todo Methods
   const addTodo = (content: string) => {
-    const newTodo: Todo = {
-      id: crypto.randomUUID(),
+    const optimistic: Todo = {
+      id: generateId(),
       content,
       completed: false,
-      createdAt: Date.now()
+      createdAt: Date.now(),
+      updatedAt: Date.now(),
     };
-    setTodos(prev => [newTodo, ...prev]);
+    setTodos((prev) => [optimistic, ...prev]);
+    void createTodoApi({
+      id: optimistic.id,
+      content: optimistic.content,
+      completed: optimistic.completed,
+      createdAt: optimistic.createdAt,
+      updatedAt: optimistic.updatedAt,
+    })
+      .then((created) => {
+        setTodos((prev) => prev.map((t) => (t.id === optimistic.id ? { ...t, ...created } : t)));
+      })
+      .catch((err) => {
+        console.error('Failed to create todo:', err);
+        setTodos((prev) => prev.filter((t) => t.id !== optimistic.id));
+      });
   };
 
   const toggleTodo = (id: string) => {
@@ -277,23 +407,33 @@ export const AppStateProvider: FC<{ children: ReactNode }> = ({ children }) => {
       void addLog(`${t('daily.completedTask')}${todo.content}`).catch((err) => console.error(err));
     }
 
-    setTodos(prev => prev.map(t => {
-      if (t.id === id) {
-        return { ...t, completed: !t.completed };
-      }
-      return t;
-    }));
+    if (!todo) return;
+    const nextCompleted = !todo.completed;
+
+    setTodos((prev) => prev.map((t) => (t.id === id ? { ...t, completed: nextCompleted, updatedAt: Date.now() } : t)));
+    void updateTodoApi(id, { completed: nextCompleted }).catch((err) => {
+      console.error('Failed to update todo:', err);
+      setTodos((prev) => prev.map((t) => (t.id === id ? { ...t, completed: todo.completed } : t)));
+    });
   };
 
   const deleteTodo = (id: string) => {
-    setTodos(prev => prev.filter(t => t.id !== id));
+    const prevTodo = todos.find((t) => t.id === id);
+    setTodos((prev) => prev.filter((t) => t.id !== id));
+    void deleteTodoApi(id).catch((err) => {
+      console.error('Failed to delete todo:', err);
+      if (prevTodo) {
+        setTodos((prev) => [prevTodo, ...prev]);
+      }
+    });
   };
 
   return (
     <AppContext.Provider value={{ 
       logs, reports, todos,
       addLog, updateLog, deleteLog, addReport, deleteReport, getLogsForPeriod,
-      addTodo, toggleTodo, deleteTodo 
+      addTodo, toggleTodo, deleteTodo,
+      refreshTodos, refreshLogsAndReports,
     }}>
       {children}
     </AppContext.Provider>

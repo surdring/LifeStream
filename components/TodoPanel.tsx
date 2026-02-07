@@ -1,12 +1,23 @@
 import { useState, type FC, type FormEvent } from 'react';
-import { Check, Trash2, Plus, ListTodo } from 'lucide-react';
+import { Check, Trash2, Plus, ListTodo, RefreshCw } from 'lucide-react';
 import { useAppState } from '../context/AppStateContext';
 import { useLanguage } from '../context/LanguageContext';
 
 export const TodoPanel: FC = () => {
-  const { todos, addTodo, toggleTodo, deleteTodo } = useAppState();
+  const { todos, addTodo, toggleTodo, deleteTodo, refreshTodos } = useAppState();
   const { t } = useLanguage();
   const [inputValue, setInputValue] = useState('');
+  const [refreshing, setRefreshing] = useState(false);
+
+  const handleRefresh = async () => {
+    if (refreshing) return;
+    setRefreshing(true);
+    try {
+      await refreshTodos();
+    } finally {
+      setRefreshing(false);
+    }
+  };
 
   const handleAdd = (e: FormEvent) => {
     e.preventDefault();
@@ -28,9 +39,20 @@ export const TodoPanel: FC = () => {
           <ListTodo size={20} className="text-indigo-600" />
           {t('todo.title')}
         </h2>
-        <span className="text-xs font-medium text-gray-500 bg-white px-2 py-1 rounded-full border border-gray-200">
-          {todos.filter(t => !t.completed).length} {t('todo.remaining')}
-        </span>
+        <div className="flex items-center gap-2">
+          <button
+            onClick={() => void handleRefresh()}
+            disabled={refreshing}
+            className="p-2 rounded-lg border border-gray-200 bg-white text-gray-500 hover:bg-gray-50 disabled:opacity-60 disabled:cursor-not-allowed"
+            title={t('common.refresh')}
+            aria-label={t('common.refresh')}
+          >
+            <RefreshCw size={16} className={refreshing ? 'animate-spin' : ''} />
+          </button>
+          <span className="text-xs font-medium text-gray-500 bg-white px-2 py-1 rounded-full border border-gray-200">
+            {todos.filter(t => !t.completed).length} {t('todo.remaining')}
+          </span>
+        </div>
       </div>
 
       <div className="p-4 border-b border-gray-100 bg-white">

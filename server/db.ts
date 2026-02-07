@@ -62,6 +62,27 @@ export async function initSchema(pool: Pool): Promise<void> {
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_reports_user_id ON reports(user_id);`);
   await pool.query(`CREATE INDEX IF NOT EXISTS idx_reports_user_type ON reports(user_id, type);`);
 
+  await pool.query(`
+    CREATE TABLE IF NOT EXISTS todos (
+      id TEXT PRIMARY KEY,
+      user_id TEXT,
+      content TEXT NOT NULL,
+      completed BOOLEAN NOT NULL DEFAULT false,
+      created_at_ms BIGINT NOT NULL,
+      updated_at_ms BIGINT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+  `);
+
+  await pool.query(`ALTER TABLE todos ADD COLUMN IF NOT EXISTS user_id TEXT;`);
+  await pool.query(`ALTER TABLE todos ADD COLUMN IF NOT EXISTS content TEXT;`);
+  await pool.query(`ALTER TABLE todos ADD COLUMN IF NOT EXISTS completed BOOLEAN NOT NULL DEFAULT false;`);
+  await pool.query(`ALTER TABLE todos ADD COLUMN IF NOT EXISTS created_at_ms BIGINT;`);
+  await pool.query(`ALTER TABLE todos ADD COLUMN IF NOT EXISTS updated_at_ms BIGINT;`);
+
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_todos_user_id ON todos(user_id);`);
+  await pool.query(`CREATE INDEX IF NOT EXISTS idx_todos_user_created_at ON todos(user_id, created_at_ms DESC);`);
+
   await pool.query(
     `INSERT INTO users (id, username, password_hash, is_admin)
      VALUES ('default', 'default', '', true)
@@ -70,6 +91,18 @@ export async function initSchema(pool: Pool): Promise<void> {
   await pool.query(`UPDATE users SET is_admin = true WHERE id = 'default';`);
   await pool.query(`UPDATE logs SET user_id = 'default' WHERE user_id IS NULL;`);
   await pool.query(`UPDATE reports SET user_id = 'default' WHERE user_id IS NULL;`);
+
+  // For safety: if a legacy instance inserted todos before user_id became mandatory
+  await pool.query(`UPDATE todos SET user_id = 'default' WHERE user_id IS NULL;`);
+
+  // Backfill timestamps if they were added after some rows already existed
+  await pool.query(`UPDATE todos SET created_at_ms = (EXTRACT(EPOCH FROM now()) * 1000)::bigint WHERE created_at_ms IS NULL;`);
+  await pool.query(`UPDATE todos SET updated_at_ms = created_at_ms WHERE updated_at_ms IS NULL;`);
+
+  // Ensure required columns
+  await pool.query(`ALTER TABLE todos ALTER COLUMN user_id SET NOT NULL;`);
+  await pool.query(`ALTER TABLE todos ALTER COLUMN created_at_ms SET NOT NULL;`);
+  await pool.query(`ALTER TABLE todos ALTER COLUMN updated_at_ms SET NOT NULL;`);
   await pool.query(`ALTER TABLE logs ALTER COLUMN user_id SET NOT NULL;`);
   await pool.query(`ALTER TABLE reports ALTER COLUMN user_id SET NOT NULL;`);
 
@@ -80,6 +113,11 @@ export async function initSchema(pool: Pool): Promise<void> {
   );
   await pool.query(
     `ALTER TABLE reports ADD CONSTRAINT reports_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE`
+  );
+
+  await pool.query(`ALTER TABLE todos DROP CONSTRAINT IF EXISTS todos_user_id_fkey;`);
+  await pool.query(
+    `ALTER TABLE todos ADD CONSTRAINT todos_user_id_fkey FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE`
   );
 
   await pool.query(`ALTER TABLE reports DROP CONSTRAINT IF EXISTS reports_type_period_start_period_end_key;`);

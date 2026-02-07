@@ -97,6 +97,163 @@ async function main() {
     }
   });
 
+  app.get('/api/todos', async (req, res) => {
+    const user = await getUserFromAuthHeader(req);
+    if (!user) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+    const userId = String(user.id);
+    try {
+      const { rows } = await pool.query(
+        `SELECT id, content, completed, created_at_ms, updated_at_ms
+         FROM todos
+         WHERE user_id = $1
+         ORDER BY created_at_ms DESC`,
+        [userId]
+      );
+
+      res.status(200).json(
+        rows.map((r) => ({
+          id: String(r.id),
+          content: String(r.content),
+          completed: Boolean(r.completed),
+          createdAt: Number(r.created_at_ms),
+          updatedAt: Number(r.updated_at_ms),
+        }))
+      );
+    } catch (err: any) {
+      res.status(500).json({ error: err?.message || String(err) });
+    }
+  });
+
+  app.post('/api/todos', async (req, res) => {
+    const schema = z.object({
+      id: z.string().min(1).optional(),
+      content: z.string().min(1),
+      completed: z.boolean().optional(),
+      createdAt: z.number().int().nonnegative().optional(),
+      updatedAt: z.number().int().nonnegative().optional(),
+    });
+
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+
+    const user = await getUserFromAuthHeader(req);
+    if (!user) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+    const userId = String(user.id);
+    const id = parsed.data.id ?? crypto.randomUUID();
+    const createdAt = parsed.data.createdAt ?? Date.now();
+    const updatedAt = parsed.data.updatedAt ?? createdAt;
+    const completed = parsed.data.completed ?? false;
+    const content = parsed.data.content;
+
+    try {
+      const { rows } = await pool.query(
+        `INSERT INTO todos (id, user_id, content, completed, created_at_ms, updated_at_ms)
+         VALUES ($1, $2, $3, $4, $5, $6)
+         ON CONFLICT (id)
+         DO UPDATE SET content = EXCLUDED.content, completed = EXCLUDED.completed, updated_at_ms = EXCLUDED.updated_at_ms
+         WHERE todos.user_id = EXCLUDED.user_id
+         RETURNING id, content, completed, created_at_ms, updated_at_ms`,
+        [id, userId, content, completed, createdAt, updatedAt]
+      );
+
+      if (rows.length === 0) {
+        res.status(409).json({ error: 'Todo id conflict.' });
+        return;
+      }
+
+      const r = rows[0];
+      res.status(201).json({
+        id: String(r.id),
+        content: String(r.content),
+        completed: Boolean(r.completed),
+        createdAt: Number(r.created_at_ms),
+        updatedAt: Number(r.updated_at_ms),
+      });
+    } catch (err: any) {
+      res.status(500).json({ error: err?.message || String(err) });
+    }
+  });
+
+  app.put('/api/todos/:id', async (req, res) => {
+    const schema = z.object({
+      content: z.string().min(1).optional(),
+      completed: z.boolean().optional(),
+    });
+
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+
+    const id = req.params.id;
+    const user = await getUserFromAuthHeader(req);
+    if (!user) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+    const userId = String(user.id);
+    const updatedAt = Date.now();
+
+    try {
+      const { rows } = await pool.query(
+        `UPDATE todos
+         SET content = COALESCE($1, content),
+             completed = COALESCE($2, completed),
+             updated_at_ms = $3
+         WHERE id = $4 AND user_id = $5
+         RETURNING id, content, completed, created_at_ms, updated_at_ms`,
+        [parsed.data.content ?? null, typeof parsed.data.completed === 'boolean' ? parsed.data.completed : null, updatedAt, id, userId]
+      );
+
+      if (rows.length === 0) {
+        res.status(404).json({ error: 'Todo not found.' });
+        return;
+      }
+
+      const r = rows[0];
+      res.status(200).json({
+        id: String(r.id),
+        content: String(r.content),
+        completed: Boolean(r.completed),
+        createdAt: Number(r.created_at_ms),
+        updatedAt: Number(r.updated_at_ms),
+      });
+    } catch (err: any) {
+      res.status(500).json({ error: err?.message || String(err) });
+    }
+  });
+
+  app.delete('/api/todos/:id', async (req, res) => {
+    const id = req.params.id;
+    const user = await getUserFromAuthHeader(req);
+    if (!user) {
+      res.status(401).json({ error: 'Unauthorized' });
+      return;
+    }
+    const userId = String(user.id);
+
+    try {
+      const result = await pool.query(`DELETE FROM todos WHERE id = $1 AND user_id = $2`, [id, userId]);
+      if (result.rowCount === 0) {
+        res.status(404).json({ error: 'Todo not found.' });
+        return;
+      }
+      res.status(204).end();
+    } catch (err: any) {
+      res.status(500).json({ error: err?.message || String(err) });
+    }
+  });
+
   app.post('/api/auth/bootstrap', async (req, res) => {
     const schema = z.object({
       username: z.string().min(1),
@@ -761,8 +918,8 @@ async function main() {
     }
   });
 
-  const port = config.server.port;
-  const host = config.server.host;
+  const port = config.server.port ?? 8787;
+  const host = config.server.host ?? '127.0.0.1';
 
   app.listen(port, host, () => {
     console.log(`LifeStream local backend listening on http://${host}:${port}`);

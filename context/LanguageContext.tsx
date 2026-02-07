@@ -10,6 +10,7 @@ export const translations = {
       edit: "Edit",
       save: "Save",
       cancel: "Cancel",
+      refresh: "Refresh",
     },
     sidebar: {
       dailyLog: "Daily Log",
@@ -58,6 +59,7 @@ export const translations = {
       edit: "编辑",
       save: "保存",
       cancel: "取消",
+      refresh: "刷新",
     },
     sidebar: {
       dailyLog: "每日日志",

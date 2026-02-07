@@ -1,7 +1,7 @@
 import { useEffect, useState, useRef, type FC, type KeyboardEvent as ReactKeyboardEvent } from 'react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { Send, Clock, Trash2, Calendar as CalendarIcon, ListTodo, X, Edit2, Check, ChevronDown, ChevronUp } from 'lucide-react';
+import { Send, Clock, Trash2, Calendar as CalendarIcon, ListTodo, X, Edit2, Check, ChevronDown, ChevronUp, RefreshCw } from 'lucide-react';
 import { useAppState } from '../context/AppStateContext';
 import { useLanguage } from '../context/LanguageContext';
 import { TodoPanel } from './TodoPanel';
@@ -10,8 +10,20 @@ import { generateCues } from '../services/apiClient';
 import { extractActionItemsFromMarkdown, extractCuesSection, stripThinkingFromReport } from '../shared/reportPrompt';
 
 export const DailyView: FC = () => {
-  const { logs, reports, todos, addTodo, addLog, updateLog, deleteLog } = useAppState();
+  const { logs, reports, todos, addTodo, addLog, updateLog, deleteLog, refreshLogsAndReports } = useAppState();
   const { t, language } = useLanguage();
+
+  const [refreshingLogs, setRefreshingLogs] = useState(false);
+
+  const handleRefreshLogs = async () => {
+    if (refreshingLogs) return;
+    setRefreshingLogs(true);
+    try {
+      await refreshLogsAndReports();
+    } finally {
+      setRefreshingLogs(false);
+    }
+  };
 
   const formatLocalDateKey = (d: Date): string => {
     const y = d.getFullYear();
@@ -280,6 +292,16 @@ export const DailyView: FC = () => {
                         />
                         <CalendarIcon size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400 pointer-events-none" />
                     </div>
+
+                    <button
+                        onClick={() => void handleRefreshLogs()}
+                        disabled={refreshingLogs}
+                        className="p-2 rounded-lg border border-gray-200 bg-white text-gray-500 hover:bg-gray-50 disabled:opacity-60 disabled:cursor-not-allowed"
+                        title={t('common.refresh')}
+                        aria-label={t('common.refresh')}
+                    >
+                        <RefreshCw size={18} className={refreshingLogs ? 'animate-spin' : ''} />
+                    </button>
 
                     {/* Mobile Todo Toggle */}
                     <button 

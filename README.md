@@ -132,27 +132,22 @@ npm run clear:test-data -- --yes
   - 成功返回 `204`
   - 报表不存在返回 `404`
 
-### 3) 使用 frp 做内网穿透（推荐只暴露前端 3000）
+### 3) 使用 frp 做内网穿透（真实配置：暴露内网 Nginx 3001）
 
-如果你只有一台“便宜公网服务器”，而真正跑 LifeStream 的机器在内网/家里（无法直接公网访问），可以用 `frp` 把内网的前端 dev server 暴露到公网。
+如果你只有一台公网服务器（跑 `frps`），而真正跑 LifeStream 的机器在内网/家里（无法直接公网访问），可以用 `frp` 把内网的 Nginx 入口暴露到公网。
 
-推荐做法：
+你当前的真实链路是：
 
-- **只暴露前端 Vite（3000）**
-- 后端（8787）与数据库保持只在内网监听
-- 浏览器访问公网域名 -> frp -> 内网 Vite（3000）
-- 浏览器请求的 `/api/*` 会先到 Vite，再由 Vite Proxy 转发到同机后端 `127.0.0.1:8787`
+- 内网机器：Nginx 监听 `3001`（托管 `dist/`，并把 `/api/` 反代到后端 `127.0.0.1:8787`）
+- frpc：把本机 `127.0.0.1:3001` 通过 `http` 代理出去（`subdomain = "lifestream"`）
+- frps：对外提供 `vhostHTTPPort = 7080`
+- 公网访问：`http://lifestream.tofly.top:7080/`
 
-这样做的好处：
-
-- 公网侧只需要开一个入口（3000/HTTP 域名）
-- 后端端口不直接暴露，安全性更好
-
-#### A. 公网服务器（frps）示例配置
+#### A. 公网服务器（frps）配置
 
 下面以 `frp` 的 TOML 配置为例（你可以按自己的版本改成 ini）。
 
-`frps.toml`：
+`frps.toml`（请按你的服务器实际情况填写域名解析与鉴权）：
 
 ```toml
 bindPort = 7700
@@ -172,12 +167,12 @@ token = "PLEASE_CHANGE_ME"
 ./frps -c frps.toml
 ```
 
-#### B. 内网机器（frpc）示例配置
+#### B. 内网机器（frpc）配置
 
-`frpc.toml`：
+`frpc.toml`（保留你当前真实在用的 proxy 配置）：
 
 ```toml
-serverAddr = "47.96.159.100"
+serverAddr = "YOUR_FRPS_HOST"
 serverPort = 7700
 
 [auth]
@@ -185,13 +180,11 @@ method = "token"
 token = "PLEASE_CHANGE_ME"
 
 [[proxies]]
-name = "lifestream-web"
+name = "lifestream_web"
 type = "http"
 localIP = "127.0.0.1"
-localPort = 3000
-
-# 方式 1：使用自定义域名（推荐）
-customDomains = ["lifestream.tofly.top"]
+localPort = 3001
+subdomain = "lifestream"
 ```
 
 启动 frpc（示例）：
@@ -200,22 +193,133 @@ customDomains = ["lifestream.tofly.top"]
 ./frpc -c frpc.toml
 ```
 
-然后你就可以通过类似下面的地址访问：
+然后你就可以通过下面的地址访问：
 
 - `http://lifestream.tofly.top:7080`
 
 #### C. 启动顺序（内网机器）
 
-1. 启动 Postgres / LLM（按你的环境）
-2. 启动后端：`npm run dev:server`
-3. 启动前端：`npm run dev`
+1. 构建前端：`npm run build`（生成 `dist/`）
+2. 启动后端（systemd/手动均可）
+3. 启动/重载 Nginx（监听 3001）
 4. 启动 frpc：`./frpc -c frpc.toml`
 
 #### D. 注意事项
 
-- Vite 对 Host Header 有校验。如果你用 frp 域名访问遇到 403，需要在 `vite.config.ts` 的 `server.allowedHosts` 里加入对应域名/公网 IP（本项目已预留该配置）。
 - 强烈建议为 frp 开启鉴权（token/oidc 等），避免公网被扫到后随意转发。
-- 这是“开发/临时对外访问”方案。生产环境更推荐：构建前端 + Nginx 反代 `/api`（见下方“部署（生产环境）”）。
+- 如果你希望去掉 `:7080` 或上 HTTPS，可以在公网服务器用 Nginx 再反代一次（80/443 -> 7080）。
+
+#### E. （推荐）内网机器用 Nginx 作为 frpc 的本地入口
+
+当你希望更稳定地对外提供服务（而不是直接暴露 `npm run dev` 的 Vite 开发服务器），可以在**内网机器**用 Nginx 托管前端 `dist/` 并反代 `/api` 到后端，然后让 `frpc` 的 `localPort` 指向 Nginx。
+
+如果你使用的是宝塔/自定义安装的 Nginx（配置在 `/www/server/nginx/conf/nginx.conf`），通常站点配置文件放在：
+
+- `/www/server/panel/vhost/nginx/*.conf`
+
+按你当前真实配置（`frpc.toml` 的 `localPort = 3001`），推荐按下面步骤配置：
+
+1) 新建 Nginx 站点配置文件（内网机器）
+
+创建文件（名字随意，这里建议用）：
+
+- `/www/server/panel/vhost/nginx/lifestream_3001.conf`
+
+内容如下（直接照抄即可）：
+
+```nginx
+server {
+  listen 3001;
+  server_name _;
+
+  root /home/zhengxueen/workspace/LifeStream/dist;
+  index index.html;
+
+  location /api/ {
+    proxy_pass http://127.0.0.1:8787;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+  }
+
+  location / {
+    try_files $uri $uri/ /index.html;
+  }
+}
+```
+
+2) 确保前端已构建
+
+在项目目录执行（生成 `dist/`）：
+
+```bash
+npm run build
+```
+
+3) 确保 Nginx 用户 `www` 能读到 `dist/`
+
+你的 `nginx.conf` 顶部是 `user www www;`，所以至少要保证目录可读可进：
+
+```bash
+chmod o+rx /home/zhengxueen
+chmod -R o+rX /home/zhengxueen/workspace/LifeStream/dist
+```
+
+如果你不想给 home 目录放开权限，那就把 `dist/` 复制到 `/www/wwwroot/lifestream/dist` 这类宝塔网站目录（`www` 默认有权限），然后把上面配置里的 `root` 改掉即可。
+
+4) 测试并重载（宝塔 Nginx）
+
+```bash
+sudo /www/server/nginx/sbin/nginx -t -c /www/server/nginx/conf/nginx.conf
+sudo /www/server/nginx/sbin/nginx -s reload
+```
+
+5) 验证
+
+内网机器本机测试：
+
+```bash
+curl -I http://127.0.0.1:3001/
+curl -I http://127.0.0.1:3001/api/health
+```
+
+公网仍然通过 frp：
+
+- `http://lifestream.tofly.top:7080/`
+
+内网机器启动顺序建议：
+
+1. 构建前端：`npm run build`（生成 `dist/`）
+2. 启动后端（systemd/手动均可）
+3. 启动/重载 Nginx
+4. 启动 frpc
+
+
+- 如果 owner 是你的用户（例如 `zhengxueen`），通常无需 `sudo` 就能 `chmod`
+- 如果提示 `Operation not permitted`，再用 `sudo chmod ...`
+
+如果你不想给 home 目录开放 `o+rx` 权限，可以把 `dist/` 复制到宝塔网站目录（例如 `/www/wwwroot/lifestream/dist`），并把 Nginx 的 `root` 改成该路径。
+
+Nginx 启动/重载命令（内网机器）：
+
+```bash
+# 如果你是通过系统包管理器安装的 nginx（常见路径 /etc/nginx），可以用 systemd：
+sudo nginx -t
+sudo systemctl enable --now nginx
+sudo systemctl reload nginx
+
+# 如果你的 nginx 是宝塔/自定义安装（配置文件在 /www/server/nginx/conf/nginx.conf）：
+sudo /www/server/nginx/sbin/nginx -t -c /www/server/nginx/conf/nginx.conf
+sudo /www/server/nginx/sbin/nginx -c /www/server/nginx/conf/nginx.conf
+sudo /www/server/nginx/sbin/nginx -s reload
+```
+
+此时公网访问仍然是：
+
+- `http://lifestream.tofly.top:7080/`
+
+但落到内网侧将变为：frps -> frpc -> **Nginx(3001)** -> 前端静态资源 / `/api` 反代到后端。
 
 ### 4) 创建新用户（管理员操作）
 
@@ -291,33 +395,102 @@ pm2 save
 
 后端默认监听 `127.0.0.1:8787`，建议只在本机监听并由 Nginx 反代。
 
-#### 3) Nginx 配置示例
+#### 3) Nginx 配置
 
-将前端 `dist/` 放到例如 `/var/www/lifestream/dist`，并配置：
+本项目推荐用“内网 Nginx 作为入口（监听 `3001`，供 `frpc.toml` 的 `localPort=3001` 指向）”，具体配置见上文：
 
-```nginx
-server {
-  listen 80;
-  server_name your.domain.com;
+- `### 3) 使用 frp 做内网穿透` -> `#### E. （推荐）内网机器用 Nginx 作为 frpc 的本地入口`
 
-  # 前端静态资源
-  root /var/www/lifestream/dist;
-  index index.html;
+### 方案 C：Nginx + systemd（推荐）
 
-  # API 反代
-  location /api/ {
-    proxy_pass http://127.0.0.1:8787;
-    proxy_http_version 1.1;
-    proxy_set_header Host $host;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto $scheme;
-  }
+如果你希望用 systemd 托管后端进程（而不是 PM2），可以按下面方式部署。
 
-  # SPA 路由回退
-  location / {
-    try_files $uri $uri/ /index.html;
-  }
-}
+约定（按你的需求）：
+
+- **部署目录**：当前工作目录（例如：`/home/zhengxueen/workspace/LifeStream`）
+- **运行用户**：你的普通用户（例如：`zhengxueen`）
+- **前端**：Nginx 托管 `dist/`，并反代 `/api/` 到本机后端
+
+#### 1) 构建前端
+
+在项目目录执行：
+
+```bash
+npm install
+npm run build
+```
+
+构建产物在 `dist/`。
+
+#### 2) 创建 systemd unit（后端）
+
+创建文件：`/etc/systemd/system/lifestream-server.service`（需要 root 权限）。
+
+将下面的 `WorkingDirectory`、`User/Group` 替换为你的实际值：
+
+```ini
+[Unit]
+Description=LifeStream Backend API
+After=network.target
+
+[Service]
+Type=simple
+
+User=zhengxueen
+Group=zhengxueen
+WorkingDirectory=/home/zhengxueen/workspace/LifeStream
+
+Environment=NODE_ENV=production
+Environment=LIFESTREAM_JWT_SECRET=hu0hnn0uwjccc76@yaoshangxian.top
+# 可选：如果你不想把 jwt_secret 写进 config.toml，也可以使用环境变量
+# Environment=LIFESTREAM_JWT_SECRET=PLEASE_CHANGE_ME
+Environment=PATH=/home/zhengxueen/.nvm/versions/node/v24.11.1/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin
+ExecStart=/home/zhengxueen/.nvm/versions/node/v24.11.1/bin/npm run server
+Restart=on-failure
+RestartSec=3
+TimeoutStopSec=20
+
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target
+```
+
+启用并启动：
+
+```bash
+sudo systemctl daemon-reload
+sudo systemctl enable --now lifestream-server
+sudo systemctl status lifestream-server
+```
+
+查看日志：
+
+```bash
+sudo journalctl -u lifestream-server -f
+```
+
+
+
+#### 3) Nginx 配置示例（托管前端 + 反代 /api）
+
+本项目在你的真实部署中使用“内网 Nginx 监听 `3001` + 托管 `dist/` + `/api/` 反代到 `127.0.0.1:8787`”，并由 frp 将公网请求转发到该端口。
+
+Nginx 的 server 配置内容见上文：
+
+- `### 3) 使用 frp 做内网穿透` -> `#### E. （推荐）内网机器用 Nginx 作为 frpc 的本地入口`
+
+改完 Nginx 配置后重载：
+
+```bash
+# 如果你是通过系统包管理器安装的 nginx（常见路径 /etc/nginx），可以用 systemd：
+sudo nginx -t
+sudo systemctl reload nginx
+
+# 如果你的 nginx 是宝塔/自定义安装（配置文件在 /www/server/nginx/conf/nginx.conf）：
+sudo /www/server/nginx/sbin/nginx -t -c /www/server/nginx/conf/nginx.conf
+sudo /www/server/nginx/sbin/nginx -s reload
 ```
 
 ### 方案 B：只部署后端（给前端单独域名/平台）
@@ -341,3 +514,10 @@ server {
 - `baseUrl/base_url` 是否可从后端机器访问
 - `api_key` 是否正确
 
+## 更新代码
+
+```bash
+npm install # 可选
+npm run build
+sudo /www/server/nginx/sbin/nginx -s reload
+```

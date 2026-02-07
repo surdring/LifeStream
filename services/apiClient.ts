@@ -88,6 +88,14 @@ export async function authMe(): Promise<{ user: ApiAuthUser }> {
 
 export type ApiLogEntry = LogEntry & { dateKey: string };
 
+export type ApiTodo = {
+  id: string;
+  content: string;
+  completed: boolean;
+  createdAt: number;
+  updatedAt: number;
+};
+
 export async function listLogs(params?: { start?: string; end?: string }): Promise<ApiLogEntry[]> {
   const qs = new URLSearchParams();
   if (params?.start) qs.set('start', params.start);
@@ -158,4 +166,26 @@ export async function generateCues(payload: {
   periodName?: string;
 }): Promise<{ content: string }> {
   return request('/api/cues/generate', { method: 'POST', body: JSON.stringify(payload) });
+}
+
+export async function listTodos(): Promise<ApiTodo[]> {
+  return request('/api/todos');
+}
+
+export async function createTodo(payload: {
+  id?: string;
+  content: string;
+  completed?: boolean;
+  createdAt?: number;
+  updatedAt?: number;
+}): Promise<ApiTodo> {
+  return request('/api/todos', { method: 'POST', body: JSON.stringify(payload) });
+}
+
+export async function updateTodo(id: string, payload: { content?: string; completed?: boolean }): Promise<ApiTodo> {
+  return request(`/api/todos/${id}`, { method: 'PUT', body: JSON.stringify(payload) });
+}
+
+export async function deleteTodo(id: string): Promise<void> {
+  await request(`/api/todos/${id}`, { method: 'DELETE' });
 }
