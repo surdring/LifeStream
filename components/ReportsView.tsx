@@ -206,9 +206,9 @@ export const ReportsView: FC = () => {
 
   return (
     <div className="flex flex-col h-full bg-gray-50">
-      <header className="px-8 py-6 bg-white border-b border-gray-200">
-        <h1 className="text-2xl font-bold text-gray-900 mb-4">{t('reports.title')}</h1>
-        <div className="flex gap-2 items-center">
+      <header className="px-4 md:px-8 py-4 md:py-6 bg-white border-b border-gray-200">
+        <h1 className="text-xl md:text-2xl font-bold text-gray-900 mb-3 md:mb-4">{t('reports.title')}</h1>
+        <div className="flex flex-wrap gap-2 items-center">
             {[ReportType.DAILY, ReportType.WEEKLY, ReportType.MONTHLY, ReportType.YEARLY].map((type) => (
                 <button
                     key={type}

@@ -274,7 +274,7 @@ export const DailyView: FC = () => {
         {/* Main Journal Area */}
         <div className="flex-1 flex flex-col h-full bg-white/50 backdrop-blur-sm min-w-0">
             {/* Header */}
-            <header className="px-6 py-4 border-b border-gray-100 bg-white flex justify-between items-center sticky top-0 z-10">
+            <header className="px-4 md:px-6 py-3 md:py-4 border-b border-gray-100 bg-white flex justify-between items-center sticky top-0 z-10">
                 <div className="flex-1 min-w-0 mr-4">
                     <h1 className="text-xl md:text-2xl font-bold text-gray-900 truncate">
                         {isToday ? t('daily.today') : new Date(`${selectedDate}T00:00:00`).toLocaleDateString(locale, { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
@@ -317,7 +317,7 @@ export const DailyView: FC = () => {
                 </div>
             </header>
 
-            <div className="px-4 md:px-8 py-4 border-b border-gray-100 bg-white">
+            <div className="px-4 md:px-8 py-3 md:py-4 border-b border-gray-100 bg-white">
               <div className="max-w-3xl mx-auto">
                 <div className="flex items-center justify-between gap-3">
                   <div className="min-w-0">
@@ -333,7 +333,7 @@ export const DailyView: FC = () => {
                     </div>
                   </div>
 
-                  <div className="flex items-center gap-2 flex-shrink-0">
+                  <div className="flex flex-wrap items-center justify-end gap-2 flex-shrink-0">
                     <button
                       onClick={() =>
                         setCuesOpenByDate((prev) => ({
@@ -349,7 +349,7 @@ export const DailyView: FC = () => {
                     <button
                       onClick={() => void handleGenerateCues()}
                       disabled={cuesLoading}
-                      className="px-3 py-1.5 rounded-lg text-xs font-medium border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-60 disabled:cursor-not-allowed"
+                      className="px-2.5 py-1.5 rounded-lg text-xs font-medium border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-60 disabled:cursor-not-allowed"
                     >
                       {cuesLoading
                         ? (language === 'zh' ? '生成中...' : 'Generating...')
@@ -362,7 +362,7 @@ export const DailyView: FC = () => {
                         syncActionItemsToTodo(cues);
                       }}
                       disabled={cuesLoading || !cuesMarkdown}
-                      className="px-3 py-1.5 rounded-lg text-xs font-medium border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-60 disabled:cursor-not-allowed"
+                      className="px-2.5 py-1.5 rounded-lg text-xs font-medium border border-gray-200 bg-white text-gray-700 hover:bg-gray-50 disabled:opacity-60 disabled:cursor-not-allowed"
                     >
                       {language === 'zh' ? '同步行动项' : 'Sync Actions'}
                     </button>
@@ -474,7 +474,7 @@ export const DailyView: FC = () => {
             </div>
 
             {/* Stream Area */}
-            <div className="flex-1 overflow-y-auto px-4 md:px-8 py-6 space-y-6">
+            <div className="flex-1 overflow-y-auto px-4 md:px-8 py-5 md:py-6 space-y-6">
                 {currentLogs.length === 0 ? (
                     <div className="h-full flex flex-col items-center justify-center text-gray-400 opacity-50">
                         <Clock size={48} className="mb-4" />

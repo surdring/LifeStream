@@ -33,7 +33,7 @@ export const Sidebar: FC<SidebarProps> = ({ currentView, onViewChange, user, onL
   }, [accountMenuOpen]);
 
   return (
-    <aside className="w-20 lg:w-64 bg-white border-r border-gray-200 flex flex-col items-center lg:items-stretch py-6 z-20 shadow-sm transition-all">
+    <aside className="w-20 lg:w-64 h-full bg-white border-r border-gray-200 flex flex-col items-center lg:items-stretch py-6 z-20 shadow-sm transition-all">
       <div className="flex items-center justify-center lg:justify-start lg:px-6 mb-8 gap-3">
         <div className="w-10 h-10 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center text-white shadow-lg">
           <Feather size={20} />
