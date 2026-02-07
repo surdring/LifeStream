@@ -521,6 +521,7 @@ sudo /www/server/nginx/sbin/nginx -s reload
 - 待办数据存储在后端 Postgres 的 `todos` 表中，并按登录用户的 `user_id` 隔离
 - 前端通过 `/api/todos` 进行读取/新增/更新/删除，同一账号在不同设备登录会看到同一份待办
 
+
 #### 待办从本地迁移到服务端（一次性）
 
 如果你以前的待办在浏览器本地（`localStorage` 的 `ls_todos`），升级后前端会做一次性迁移：
