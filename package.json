@@ -16,6 +16,7 @@
     "@iarna/toml": "^3.0.0",
     "bcryptjs": "^2.4.3",
     "cors": "^2.8.5",
+    "dotenv": "^17.4.2",
     "express": "^4.21.2",
     "jsonwebtoken": "^9.0.2",
     "lucide-react": "^0.563.0",
@@ -24,6 +25,7 @@
     "react-dom": "^19.2.4",
     "react-markdown": "^10.1.0",
     "remark-gfm": "^4.0.1",
+    "tsx": "^4.19.3",
     "zod": "^3.24.2"
   },
   "devDependencies": {
@@ -34,7 +36,6 @@
     "@types/node": "^22.14.0",
     "@types/pg": "^8.11.11",
     "@vitejs/plugin-react": "^5.0.0",
-    "tsx": "^4.19.3",
     "typescript": "~5.8.2",
     "vite": "^6.2.0"
   }

@@ -33,7 +33,7 @@ export function clearAuthToken(): void {
   window.dispatchEvent(new Event(AUTH_CHANGED_EVENT));
 }
 
-async function request<T>(input: RequestInfo | URL, init?: RequestInit): Promise<T> {
+export async function request<T>(input: RequestInfo | URL, init?: RequestInit): Promise<T> {
   const token = getAuthToken();
   const resp = await fetch(input, {
     ...init,

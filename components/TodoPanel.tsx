@@ -116,7 +116,7 @@ export const TodoPanel: FC = () => {
 
               <button
                 onClick={() => deleteTodo(todo.id)}
-                className="opacity-0 group-hover:opacity-100 p-1.5 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded-lg transition-all"
+                className="opacity-60 md:opacity-0 md:group-hover:opacity-100 p-1.5 text-gray-400 hover:text-red-500 active:text-red-500 hover:bg-red-50 rounded-lg transition-all"
                 title="Delete task"
               >
                 <Trash2 size={14} />

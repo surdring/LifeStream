@@ -40,7 +40,7 @@ export const AuthView: FC<{
   };
 
   return (
-    <div className="min-h-screen w-full flex items-center justify-center bg-gray-50 p-6">
+    <div className="min-h-screen w-full flex items-center justify-center bg-gray-50 p-4 md:p-6" style={{ paddingLeft: 'max(1rem, env(safe-area-inset-left))', paddingRight: 'max(1rem, env(safe-area-inset-right))' }}>
       <div className="w-full max-w-md rounded-2xl border border-gray-200 bg-white shadow-sm p-6">
         <h1 className="text-xl font-bold text-gray-900">{title}</h1>
         <p className="mt-2 text-sm text-gray-500">

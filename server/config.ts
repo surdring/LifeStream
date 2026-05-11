@@ -97,3 +97,46 @@ export async function loadConfig(configPath = path.join(process.cwd(), 'config.t
 
   return data as AppConfig;
 }
+
+export async function saveConfig(
+  updates: Partial<AppConfig>,
+  configPath = path.join(process.cwd(), 'config.toml'),
+): Promise<AppConfig> {
+  let rawText: string;
+  try {
+    rawText = await fs.readFile(configPath, 'utf-8');
+  } catch (err: any) {
+    throw new Error(`Failed to read config file: ${err?.message || String(err)}`);
+  }
+
+  let parsed: any;
+  try {
+    parsed = toml.parse(rawText);
+  } catch (err: any) {
+    throw new Error(`Failed to parse config: ${err?.message || String(err)}`);
+  }
+
+  // Deep merge updates into parsed config
+  for (const [section, value] of Object.entries(updates)) {
+    if (value && typeof value === 'object' && !Array.isArray(value)) {
+      parsed[section] = { ...(parsed[section] || {}), ...value };
+    } else if (value !== undefined) {
+      parsed[section] = value;
+    }
+  }
+
+  const result = ConfigSchema.safeParse(parsed);
+  if (!result.success) {
+    throw new Error(`Invalid config after update: ${result.error.message}`);
+  }
+
+  let output: string;
+  try {
+    output = toml.stringify(parsed as any);
+  } catch (err: any) {
+    throw new Error(`Failed to serialize config: ${err?.message || String(err)}`);
+  }
+
+  await fs.writeFile(configPath, output, 'utf-8');
+  return result.data as AppConfig;
+}

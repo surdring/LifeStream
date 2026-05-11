@@ -1,15 +1,16 @@
 import { useEffect, useRef, useState, type FC } from 'react';
-import { BookOpen, BarChart3, Feather, Globe, LogOut, MoreHorizontal } from 'lucide-react';
+import { BookOpen, BarChart3, Feather, Globe, LogOut, MoreHorizontal, Settings } from 'lucide-react';
 import { useLanguage } from '../context/LanguageContext';
 
 interface SidebarProps {
   currentView: 'daily' | 'reports';
   onViewChange: (view: 'daily' | 'reports') => void;
-  user?: { username: string } | null;
+  user?: { username: string; isAdmin?: boolean } | null;
   onLogout?: () => void;
+  onOpenModelConfig?: () => void;
 }
 
-export const Sidebar: FC<SidebarProps> = ({ currentView, onViewChange, user, onLogout }) => {
+export const Sidebar: FC<SidebarProps> = ({ currentView, onViewChange, user, onLogout, onOpenModelConfig }) => {
   const { t, language, setLanguage } = useLanguage();
   const userInitial = user?.username?.trim()?.slice(0, 1).toUpperCase() ?? '?';
   const [accountMenuOpen, setAccountMenuOpen] = useState(false);
@@ -74,6 +75,7 @@ export const Sidebar: FC<SidebarProps> = ({ currentView, onViewChange, user, onL
           <p className="text-xs text-gray-500 font-medium">{t('sidebar.proTip')}</p>
           <p className="text-xs text-gray-400 mt-1">{t('sidebar.proTipDesc')}</p>
         </div>
+
       </nav>
 
       <div className="px-4 w-full mt-auto space-y-4">
@@ -95,6 +97,18 @@ export const Sidebar: FC<SidebarProps> = ({ currentView, onViewChange, user, onL
 
             {accountMenuOpen && (
               <div className="absolute bottom-full left-0 right-0 mb-2 rounded-xl border border-gray-200 bg-white shadow-lg overflow-hidden">
+                {user?.isAdmin && onOpenModelConfig && (
+                  <button
+                    onClick={() => {
+                      setAccountMenuOpen(false);
+                      onOpenModelConfig();
+                    }}
+                    className="w-full flex items-center gap-2 px-3 py-2 text-xs font-semibold text-gray-700 hover:bg-gray-50"
+                  >
+                    <Settings size={14} className="text-gray-400" />
+                    <span>{language === 'zh' ? '模型配置' : 'Model Config'}</span>
+                  </button>
+                )}
                 {/* Language Toggle */}
                 <button
                   onClick={() => {

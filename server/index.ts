@@ -1,10 +1,11 @@
+import 'dotenv/config';
 import express from 'express';
 import cors from 'cors';
 import crypto from 'crypto';
 import { z } from 'zod';
 import jwt from 'jsonwebtoken';
 import bcrypt from 'bcryptjs';
-import { loadConfig } from './config';
+import { loadConfig, saveConfig, type AppConfig } from './config';
 import { createPool, initSchema } from './db';
 import { generateCuesWithConfiguredLLM, generateReportWithConfiguredLLM } from './llm';
 import { ReportType } from '../types';
@@ -14,6 +15,31 @@ function isIsoDate(value: string): boolean {
   return /^\d{4}-\d{2}-\d{2}$/.test(value);
 }
 
+// Parse PROVIDER_* env vars (e.g. PROVIDER_OPENAI_NAME, PROVIDER_OPENAI_BASE_URL, PROVIDER_OPENAI_API_KEY)
+function parseProviderPresetsFromEnv(): Array<{ id: string; name: string; baseUrl: string; needsApiKey: boolean; defaultApiKey?: string }> {
+  const ids = new Set<string>();
+  for (const key of Object.keys(process.env)) {
+    const m = key.match(/^PROVIDER_(\w+)_NAME$/);
+    if (m) ids.add(m[1]);
+  }
+  const presets: Array<{ id: string; name: string; baseUrl: string; needsApiKey: boolean; defaultApiKey?: string }> = [];
+  for (const id of ids) {
+    const name = process.env[`PROVIDER_${id}_NAME`];
+    const baseUrl = process.env[`PROVIDER_${id}_BASE_URL`] || '';
+    const apiKey = process.env[`PROVIDER_${id}_API_KEY`] || '';
+    if (name) {
+      presets.push({
+        id: id.toLowerCase(),
+        name,
+        baseUrl,
+        needsApiKey: true,
+        defaultApiKey: apiKey || undefined,
+      });
+    }
+  }
+  return presets;
+}
+
 type AuthUser = {
   id: string;
   username: string;
@@ -21,7 +47,7 @@ type AuthUser = {
 };
 
 async function main() {
-  const config = await loadConfig();
+  let config = await loadConfig();
 
   const jwtSecret = config.auth?.jwt_secret;
   if (!jwtSecret || jwtSecret.length < 16) {
@@ -426,6 +452,216 @@ async function main() {
     }
     (req as any).user = user;
     next();
+  });
+
+  // ─── LLM Config API (admin-only) ─────────────────────────────
+  app.use('/api/llm', async (req, res, next) => {
+    const user = (req as any).user as AuthUser | undefined;
+    if (!user?.isAdmin) {
+      res.status(403).json({ error: 'Admin access required for LLM configuration.' });
+      return;
+    }
+    next();
+  });
+
+  app.get('/api/llm/config', async (_req, res) => {
+    try {
+      const activeProvider = config.llm.llm_provider;
+      const providerPresets: Array<{ id: string; name: string; baseUrl: string; needsApiKey: boolean; defaultApiKey?: string }> = [];
+
+      // Add presets from .env PROVIDER_* vars
+      const envPresets = parseProviderPresetsFromEnv();
+      providerPresets.push(...envPresets);
+
+      // Always add custom as last option
+      if (!providerPresets.find((p) => p.id === 'custom')) {
+        providerPresets.push({
+          id: 'custom',
+          name: '自定义 (OpenAI 兼容)',
+          baseUrl: '',
+          needsApiKey: true,
+        });
+      }
+
+      // Server default config from AI_* env vars
+      const serverBaseUrl = process.env.AI_BASE_URL || (activeProvider === 'llamacpp' && config.llamacpp ? config.llamacpp.baseUrl : config.provider?.base_url) || '';
+      const serverModel = process.env.AI_MODEL || (activeProvider === 'llamacpp' && config.llamacpp ? config.llamacpp.model : config.provider?.model_id) || '';
+      const serverApiKey = process.env.AI_API_KEY || (activeProvider === 'llamacpp' ? config.llamacpp?.api_key : config.provider?.api_key) || '';
+      const serverModelsStr = process.env.AI_MODELS || '';
+      const serverModels = serverModelsStr ? serverModelsStr.split(',').map((s) => s.trim()).filter(Boolean) : (serverModel ? [serverModel] : []);
+
+      const activeConfig = activeProvider === 'llamacpp' && config.llamacpp
+        ? { baseUrl: config.llamacpp.baseUrl, model: config.llamacpp.model, hasApiKey: !!config.llamacpp.api_key }
+        : activeProvider === 'provider' && config.provider
+          ? { baseUrl: config.provider.base_url, model: config.provider.model_id, hasApiKey: !!config.provider.api_key }
+          : { baseUrl: serverBaseUrl, model: serverModel, hasApiKey: !!serverApiKey };
+
+      res.status(200).json({
+        activeProvider,
+        activeConfig,
+        providerPresets,
+        serverDefault: {
+          baseUrl: serverBaseUrl,
+          model: serverModel,
+          models: serverModels,
+          hasApiKey: !!serverApiKey,
+        },
+        llamacpp: config.llamacpp ? {
+          baseUrl: config.llamacpp.baseUrl,
+          model: config.llamacpp.model,
+          temperature: config.llamacpp.temperature,
+          apiKey: config.llamacpp.api_key ? '••••' + config.llamacpp.api_key.slice(-4) : '',
+          hasApiKey: !!config.llamacpp.api_key,
+        } : null,
+        provider: config.provider ? {
+          baseUrl: config.provider.base_url,
+          model: config.provider.model_id,
+          temperature: config.provider.temperature ?? 0.3,
+          apiKey: config.provider.api_key ? '••••' + config.provider.api_key.slice(-4) : '',
+          hasApiKey: !!config.provider.api_key,
+        } : null,
+      });
+    } catch (err: any) {
+      res.status(500).json({ error: err?.message || String(err) });
+    }
+  });
+
+  app.put('/api/llm/config', async (req, res) => {
+    const schema = z.object({
+      activeProvider: z.enum(['llamacpp', 'provider']).optional(),
+      llamacpp: z.object({
+        baseUrl: z.string().min(1).optional(),
+        model: z.string().min(1).optional(),
+        temperature: z.number().min(0).max(2).optional(),
+        api_key: z.string().optional(),
+      }).optional(),
+      provider: z.object({
+        base_url: z.string().min(1).optional(),
+        model_id: z.string().min(1).optional(),
+        api_key: z.string().min(1).optional(),
+        temperature: z.number().min(0).max(2).optional(),
+      }).optional(),
+    });
+
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+
+    try {
+      const updates: Partial<AppConfig> = {};
+      if (parsed.data.activeProvider) {
+        updates.llm = { llm_provider: parsed.data.activeProvider };
+      }
+      if (parsed.data.llamacpp) {
+        const llamacppUpdate: any = { ...parsed.data.llamacpp };
+        // Don't overwrite apiKey with masked value
+        if (llamacppUpdate.api_key && llamacppUpdate.api_key.startsWith('••••')) {
+          delete llamacppUpdate.api_key;
+        }
+        updates.llamacpp = { ...config.llamacpp, ...llamacppUpdate } as any;
+      }
+      if (parsed.data.provider) {
+        const providerUpdate: any = { ...parsed.data.provider };
+        if (providerUpdate.api_key && providerUpdate.api_key.startsWith('••••')) {
+          delete providerUpdate.api_key;
+        }
+        updates.provider = { ...config.provider, ...providerUpdate } as any;
+      }
+
+      config = await saveConfig(updates);
+      res.status(200).json({ ok: true });
+    } catch (err: any) {
+      res.status(500).json({ error: err?.message || String(err) });
+    }
+  });
+
+  app.post('/api/llm/test', async (_req, res) => {
+    try {
+      const provider = config.llm.llm_provider;
+      let url: string;
+      let body: any;
+      const headers: Record<string, string> = { 'content-type': 'application/json' };
+
+      if (provider === 'provider' && config.provider) {
+        url = `${config.provider.base_url.replace(/\/$/, '')}/chat/completions`;
+        headers['authorization'] = `Bearer ${config.provider.api_key}`;
+        body = {
+          model: config.provider.model_id,
+          messages: [{ role: 'user', content: 'Hello' }],
+          max_tokens: 10,
+          temperature: config.provider.temperature ?? 0.3,
+        };
+      } else if (provider === 'llamacpp' && config.llamacpp) {
+        url = `${config.llamacpp.baseUrl.replace(/\/$/, '')}/chat/completions`;
+        if (config.llamacpp.api_key) {
+          headers['authorization'] = `Bearer ${config.llamacpp.api_key}`;
+        }
+        body = {
+          model: config.llamacpp.model,
+          messages: [{ role: 'user', content: 'Hello' }],
+          max_tokens: 10,
+          temperature: config.llamacpp.temperature,
+        };
+      } else {
+        res.status(400).json({ error: '未配置 LLM 提供商' });
+        return;
+      }
+
+      const resp = await fetch(url, { method: 'POST', headers, body: JSON.stringify(body) });
+      if (!resp.ok) {
+        const text = await resp.text().catch(() => '');
+        res.status(502).json({ error: `提供商返回 ${resp.status}: ${text || resp.statusText}` });
+        return;
+      }
+
+      const json: any = await resp.json();
+      const content = json.choices?.[0]?.message?.content?.trim() || '';
+      res.status(200).json({ ok: true, response: content });
+    } catch (err: any) {
+      res.status(502).json({ error: err?.message || String(err) });
+    }
+  });
+
+  app.post('/api/llm/fetch-models', async (req, res) => {
+    const schema = z.object({
+      apiKey: z.string().optional(),
+      baseUrl: z.string().min(1),
+    });
+
+    const parsed = schema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: parsed.error.message });
+      return;
+    }
+
+    const { apiKey, baseUrl } = parsed.data;
+    const url = `${baseUrl.replace(/\/$/, '')}/models`;
+
+    try {
+      const headers: Record<string, string> = { 'content-type': 'application/json' };
+      if (apiKey) {
+        headers['authorization'] = `Bearer ${apiKey}`;
+      }
+
+      const resp = await fetch(url, { method: 'GET', headers });
+      if (!resp.ok) {
+        const text = await resp.text().catch(() => '');
+        res.status(502).json({ error: `Provider returned ${resp.status}: ${text || resp.statusText}` });
+        return;
+      }
+
+      const json: any = await resp.json();
+      const rawModels: string[] = (json.data || json.models || [])
+        .map((m: any) => m.id || m.name || m.model || String(m))
+        .filter((m: any): m is string => typeof m === 'string' && m.length > 0);
+
+      const models = [...new Set(rawModels)].sort();
+      res.status(200).json({ models, freeModels: [] });
+    } catch (err: any) {
+      res.status(502).json({ error: `Failed to fetch models from ${url}: ${err?.message || String(err)}` });
+    }
   });
 
   app.get('/api/health', async (_req, res) => {

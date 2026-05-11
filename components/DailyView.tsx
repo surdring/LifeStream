@@ -495,17 +495,17 @@ export const DailyView: FC = () => {
                                 </span>
                                 {/* Action Buttons */}
                                 {isToday && editingId !== log.id && (
-                                    <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <div className="flex items-center gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition-opacity">
                                         <button 
                                             onClick={() => startEditing(log)}
-                                            className="text-gray-300 hover:text-indigo-500 transition-colors p-1 rounded hover:bg-indigo-50"
+                                            className="text-gray-400 hover:text-indigo-500 active:text-indigo-500 transition-colors p-1 rounded hover:bg-indigo-50"
                                             title="Edit"
                                         >
                                             <Edit2 size={14} />
                                         </button>
                                         <button 
                                             onClick={() => void deleteLog(selectedDate, log.id).catch((err) => console.error(err))}
-                                            className="text-gray-300 hover:text-red-400 transition-colors p-1 rounded hover:bg-red-50"
+                                            className="text-gray-400 hover:text-red-400 active:text-red-400 transition-colors p-1 rounded hover:bg-red-50"
                                             title="Delete"
                                         >
                                             <Trash2 size={14} />
@@ -594,7 +594,7 @@ export const DailyView: FC = () => {
                     className="absolute inset-0 bg-black/20 backdrop-blur-sm"
                     onClick={() => setShowMobileTodos(false)}
                 ></div>
-                <div className="absolute right-0 top-0 bottom-0 w-80 bg-white shadow-2xl animate-slide-in-right">
+                <div className="absolute right-0 top-0 bottom-0 w-full max-w-xs sm:w-80 bg-white shadow-2xl animate-slide-in-right">
                     <div className="absolute top-2 right-2 z-10">
                         <button 
                             onClick={() => setShowMobileTodos(false)}

@@ -11,6 +11,7 @@
 - **LLM**：
   - `llamacpp`：调用 OpenAI 兼容接口（例如本机 llama.cpp server）
   - `provider`：调用兼容 OpenAI Chat Completions 的第三方服务（需要 API Key）
+- **模型配置**：管理员可在侧边栏切换提供商、选择模型、修改 API Key，配置实时写入 `config.toml`
 
 前端通过 Vite Proxy 将 `/api/*` 转发到后端（见 `vite.config.ts`）。
 
@@ -48,12 +49,36 @@ cp config.toml.example config.toml
 - 若选择 `llamacpp`：填写 `[llamacpp].baseUrl / model / temperature`（可选 `api_key`）
 - 若选择 `provider`：填写 `[provider].base_url / model_id / api_key`
 
+### 4. 配置 `.env`（可选：多提供商预设）
+
+把示例配置复制一份：
+
+```bash
+cp .env.example .env
+```
+
+`.env` 支持以下变量：
+
+- `AI_API_KEY` / `AI_BASE_URL` / `AI_MODEL`：服务器默认 LLM 配置（覆盖 `config.toml` 中的对应值）
+- `AI_MODELS`：逗号分隔的可用模型列表（前端展示为下拉选择）
+- `PROVIDER_{ID}_NAME` / `PROVIDER_{ID}_BASE_URL` / `PROVIDER_{ID}_API_KEY`：自定义提供商预设
+
+示例（添加 DeepSeek 提供商）：
+
+```env
+PROVIDER_DEEPSEEK_NAME="DeepSeek"
+PROVIDER_DEEPSEEK_BASE_URL="https://api.deepseek.com"
+PROVIDER_DEEPSEEK_API_KEY="sk-xxx"
+```
+
+添加后无需改代码，前端模型配置面板会自动展示新提供商。
+
 安全提示：
 
-- **不要把真实密码/Key 提交到仓库**。
+- **不要把真实密码/Key 提交到仓库**（`.env` 已在 `.gitignore` 中）
 - 你也可以通过环境变量提供 JWT 密钥：`LIFESTREAM_JWT_SECRET`
 
-### 4. 准备数据库
+### 5. 准备数据库
 
 确保目标数据库存在（后端启动时会自动建表，但不会自动创建数据库）：
 
@@ -63,7 +88,7 @@ createdb -h 127.0.0.1 -p 5432 -U postgres lifestream
 
 如果你的数据库名不同，请同步修改 `config.toml` 的 `[postgres].database`。
 
-### 5. 启动后端
+### 6. 启动后端
 
 一个终端运行：
 
@@ -75,7 +100,7 @@ npm run dev:server
 
 - `GET http://127.0.0.1:8787/api/health`
 
-### 6. 启动前端
+### 7. 启动前端
 
 另一个终端运行：
 
@@ -514,6 +539,19 @@ sudo /www/server/nginx/sbin/nginx -s reload
 - `baseUrl/base_url` 是否可从后端机器访问
 - `api_key` 是否正确
 
+也可以在前端侧边栏的「模型配置」面板中直接切换提供商和模型（需管理员账号）。修改后点击「保存默认」会写入 `config.toml` 并立即生效。
+
+### 3) 模型配置面板
+
+管理员登录后，侧边栏底部会出现「模型配置」可折叠面板：
+
+- **服务器默认**：使用 `config.toml` / `.env` 中配置的提供商和密钥，可切换模型
+- **提供商预设**：从 `.env` 的 `PROVIDER_*` 变量自动加载（如 OpenAI、DeepSeek 等），填入 API Key 后可获取模型列表
+- **自定义**：填写任意 OpenAI 兼容的 Base URL 和 API Key
+- 点击「保存默认」会将当前选择写回 `config.toml`，后端自动重载配置
+
+移动端在底部导航「用户」菜单中点击「模型配置」打开弹窗。
+
 ### 3) 待办事项是否多端共享？
 
 是。
@@ -537,7 +575,15 @@ sudo /www/server/nginx/sbin/nginx -s reload
 ## 更新代码
 
 ```bash
-npm install # 可选
-npm run build
-sudo /www/server/nginx/sbin/nginx -s reload
+npm install          # 安装新增依赖
+npm run build        # 构建前端
+sudo systemctl restart lifestream-server   # 重启后端（使后端代码变更生效）
+sudo /www/server/nginx/sbin/nginx -s reload  # 重载 Nginx
+
+npm install        
+npm run build       
+sudo systemctl restart lifestream-server  
+sudo /www/server/nginx/sbin/nginx -s reload 
 ```
+
+如果后端使用 PM2 管理，用 `pm2 restart lifestream-server` 替代 systemctl。

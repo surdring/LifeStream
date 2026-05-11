@@ -225,13 +225,13 @@ export const ReportsView: FC = () => {
         </div>
       </header>
 
-      <div className="flex-1 overflow-auto p-8">
-        <div className="max-w-4xl mx-auto space-y-8">
+      <div className="flex-1 overflow-auto p-4 md:p-8">
+        <div className="max-w-4xl mx-auto space-y-6 md:space-y-8">
             
             {/* Generator Card */}
-            <div className="bg-gradient-to-r from-indigo-500 to-purple-600 rounded-2xl p-6 text-white shadow-lg flex items-center justify-between">
+            <div className="bg-gradient-to-r from-indigo-500 to-purple-600 rounded-2xl p-4 md:p-6 text-white shadow-lg flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
-                    <h2 className="text-xl font-bold mb-1 flex items-center gap-2">
+                    <h2 className="text-lg md:text-xl font-bold mb-1 flex items-center gap-2">
                         <Sparkles size={20} className="text-yellow-300" />
                         {t('reports.generate', { type: getReportTitle(activeTab).toLowerCase() })}
                     </h2>
@@ -252,7 +252,7 @@ export const ReportsView: FC = () => {
                 <button 
                     onClick={() => void handleGenerate()}
                     disabled={loading}
-                    className="bg-white text-indigo-600 px-6 py-3 rounded-xl font-bold text-sm hover:bg-indigo-50 active:scale-95 transition-all flex items-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed shadow-md"
+                    className="bg-white text-indigo-600 px-5 py-2.5 md:px-6 md:py-3 rounded-xl font-bold text-sm hover:bg-indigo-50 active:scale-95 transition-all flex items-center gap-2 disabled:opacity-70 disabled:cursor-not-allowed shadow-md self-start md:self-auto"
                 >
                     {loading ? (
                         <>
@@ -290,7 +290,7 @@ export const ReportsView: FC = () => {
                 ) : (
                     visibleReports.map((report) => (
                         <div key={report.id} className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden animate-fade-in-up">
-                            <div className="bg-gray-50 px-6 py-4 border-b border-gray-100 flex justify-between items-center">
+                            <div className="bg-gray-50 px-4 md:px-6 py-3 md:py-4 border-b border-gray-100 flex flex-col md:flex-row md:justify-between md:items-center gap-2">
                                 <div>
                                     <h4 className="font-bold text-gray-800">
                                         {report.type === ReportType.DAILY && new Date(report.periodStart).toLocaleDateString(locale, { year: 'numeric', month: 'long', day: 'numeric' })}
@@ -302,7 +302,7 @@ export const ReportsView: FC = () => {
                                         {t('reports.generatedOn')} {new Date(report.createdAt).toLocaleDateString(locale)}
                                     </p>
                                 </div>
-                                <div className="flex items-center gap-2">
+                                <div className="flex flex-wrap items-center gap-1.5 md:gap-2">
                                     <button
                                         onClick={() => {
                                           const cleaned = stripThinkingFromReport(report.content);
@@ -310,7 +310,7 @@ export const ReportsView: FC = () => {
                                           syncActionItemsToTodo(cues ?? cleaned);
                                         }}
                                         disabled={loading || saving || editingReportId === report.id}
-                                        className="px-3 py-1 bg-white border border-gray-200 rounded-full text-xs font-medium text-gray-700 hover:bg-gray-100 disabled:opacity-60 disabled:cursor-not-allowed"
+                                        className="px-2.5 py-1 bg-white border border-gray-200 rounded-full text-xs font-medium text-gray-700 hover:bg-gray-100 disabled:opacity-60 disabled:cursor-not-allowed"
                                     >
                                         {language === 'zh' ? '同步行动项' : 'Sync Actions'}
                                     </button>
@@ -327,14 +327,14 @@ export const ReportsView: FC = () => {
                                           },
                                         })}
                                         disabled={loading || saving || editingReportId === report.id}
-                                        className="px-3 py-1 bg-white border border-gray-200 rounded-full text-xs font-medium text-gray-700 hover:bg-gray-100 disabled:opacity-60 disabled:cursor-not-allowed"
+                                        className="px-2.5 py-1 bg-white border border-gray-200 rounded-full text-xs font-medium text-gray-700 hover:bg-gray-100 disabled:opacity-60 disabled:cursor-not-allowed"
                                     >
                                         {t('reports.regenerate')}
                                     </button>
                                     <button
                                       onClick={() => void handleDeleteReport(report)}
                                       disabled={loading || saving || deletingReportId === report.id}
-                                      className="px-3 py-1 bg-white border border-red-200 rounded-full text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-1"
+                                      className="px-2.5 py-1 bg-white border border-red-200 rounded-full text-xs font-medium text-red-600 hover:bg-red-50 disabled:opacity-60 disabled:cursor-not-allowed flex items-center gap-1"
                                       title={language === 'zh' ? '删除报表' : 'Delete report'}
                                     >
                                       <Trash2 size={14} />
@@ -345,14 +345,14 @@ export const ReportsView: FC = () => {
                                         <button
                                           onClick={() => void saveEditing()}
                                           disabled={saving || loading}
-                                          className="px-3 py-1 bg-indigo-600 text-white rounded-full text-xs font-medium hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed"
+                                          className="px-2.5 py-1 bg-indigo-600 text-white rounded-full text-xs font-medium hover:bg-indigo-700 disabled:opacity-60 disabled:cursor-not-allowed"
                                         >
                                           {t('common.save')}
                                         </button>
                                         <button
                                           onClick={cancelEditing}
                                           disabled={saving || loading}
-                                          className="px-3 py-1 bg-white border border-gray-200 rounded-full text-xs font-medium text-gray-700 hover:bg-gray-100 disabled:opacity-60 disabled:cursor-not-allowed"
+                                          className="px-2.5 py-1 bg-white border border-gray-200 rounded-full text-xs font-medium text-gray-700 hover:bg-gray-100 disabled:opacity-60 disabled:cursor-not-allowed"
                                         >
                                           {t('common.cancel')}
                                         </button>
@@ -361,17 +361,17 @@ export const ReportsView: FC = () => {
                                       <button
                                           onClick={() => startEditing(report)}
                                           disabled={loading || saving}
-                                          className="px-3 py-1 bg-white border border-gray-200 rounded-full text-xs font-medium text-gray-700 hover:bg-gray-100 disabled:opacity-60 disabled:cursor-not-allowed"
+                                          className="px-2.5 py-1 bg-white border border-gray-200 rounded-full text-xs font-medium text-gray-700 hover:bg-gray-100 disabled:opacity-60 disabled:cursor-not-allowed"
                                       >
                                           {t('common.edit')}
                                       </button>
                                     )}
-                                    <span className="px-3 py-1 bg-white border border-gray-200 rounded-full text-xs font-mono text-gray-500">
+                                    <span className="px-2.5 py-1 bg-white border border-gray-200 rounded-full text-xs font-mono text-gray-500">
                                         {getReportTitle(report.type)}
                                     </span>
                                 </div>
                             </div>
-                            <div className="p-8">
+                            <div className="p-4 md:p-8">
                                 {editingReportId === report.id ? (
                                   <textarea
                                     value={draftContent}
